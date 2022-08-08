@@ -1,31 +1,28 @@
 from flask import Flask, render_template, redirect
-import pymongo
-import marsrover
+from flask_pymongo import PyMongo
+import scrape_mars
 
 app = Flask(__name__)
 
-
-conn = 'mongodb://localhost:27017'
-client = pymongo.MongoClient(conn)
-
-db = client.mars_data
+# Use flask_pymongo to set up mongo connection
+app.config["MONGO_URI"] = "mongodb://localhost:27017/mars_db"
+mongo = PyMongo(app)
 
 
 @app.route("/")
 def index():
-    db_list = client.list_database_names()
-    if "mars_data" in db_list:
-        mars_stuff = list(db.collection.find())[0]
-        return  render_template('index.html', mars_stuff=mars_stuff)
-    else:    
-        return  render_template('index_scrape_only.html')
-
+    mars = mongo.db.mars.find_one()
+    return render_template("index.html", mars=mars)
 
 @app.route("/scrape")
 def scrape():
-    db.collection.delete_many({})
-    mars_new_scrap = scrape_mars.scrap_data_mongo()
-    db.collection.insert_one(mars_new_scrap)
+    # create a listings database
+    mars = mongo.db.mars
+    # call the scrape function in our scrape_mars file. This will scrape and save to mongo.
+    mars_data = scrape_mars.scrape()
+    # update our listings with the data that is being scraped.
+    mars.update_one({}, {"$set": mars_data}, upsert=True)
+    # return a message to our page so we know it was successful.
     return redirect("/", code=302)
 
 
